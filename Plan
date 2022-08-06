@@ -1,0 +1,310 @@
+Мета - створити додаток, який буде виводити пости, приймати нові пости, матиме реакції на пости,
+інформацію про автора посту та час коли він був зроблений.
+
+Першим ділом напишемо код, який виводитиме наші пости.
+
+Встановити react-redux i @reduxjs/toolkit, створити store (configureStore) i обгорнути App в Provider;
+
+Створити postsSlice і передати його в store (configureStore) :
+
+            const initialState = [
+                {id: '1', title: 'Learning Redux Toolkit', content: 'I`ve heard good things'},
+                {id: '2', title: 'Slices...', content: 'The more I say slice, the more I want pizza'}
+            ];
+
+            const postsSlice = createSlice({
+                name: 'posts',
+                initialState,
+                reducers: {}
+            });
+
+            const selectAllPosts = (state)=> state.posts;
+            const {reducer:postsReducer} = postsSlice;
+
+            export {postsReducer,selectAllPosts};         
+
+Створимо PostsList, де ми будемо отримувати дані зі store (useSelector), де буде шаблон постів які ми виводимо - renderedPost(<article/>) i куди власне передаватимемо їх. Викличемо його в App :
+
+            const PostsList = () => {
+
+                const posts = useSelector(selectAllPosts);
+
+                const renderePosts = posts.map(post => (
+                    <article key={post.id}>
+                        <h3>{post.title}</h3>
+                        <p>{post.content.substring(0,100)}</p>
+                    </article>
+                ))
+
+            return (
+                <section>
+                    <h2>Posts</h2>
+                    {renderePosts}
+                </section>
+            )
+            }
+
+            export default PostsList;
+
+Таким чином ми написали код, який дозволяє нам виводити пости.
+Тепер нам потрібно зробити можливість додавати пости з допомогою форми.
+Але спочатку треба створити функцію, яка працюватиме з даними, які ми надсилаємо через форму.   
+
+Для цього в postsSlice в reducers додамо :
+
+            reducers: {
+                    postAdded(state,action) {
+                        state.push(action.payload)
+                    }
+                }
+
+            const {reducer:postsReducer, actions:postAdded} = postsSlice;
+
+postAdded прийматиме наш state і action в масив нашого state
+            
+Також опишемо нашу форму і логіку, яка там буде відбуватись (змінні title i content, які будуть записуватись
+інформацією з форми за допомогою useState i івенти onTitleChange i onContentChange, які будуть відхоплювати 
+інформацію з полів форми і передавати в setTitle i setContent), а також архітектура форми, і кнопку onSavePostClicked, яка буде перевіряти чи заповнені у нас форми ( if(title && content) ) і якщо так, то передаватиме (dispatch) в наш slice з допомогою action (postAdded) новий пост (id сформуємо з доп. ф-ції nanoid()):
+
+            const AddPostForm = () => {
+            const [title, setTitle] = useState("");
+            const [content, setContent] = useState("");
+
+            const onTitleChanged = (e) => setTitle(e.target.value);
+            const onContentChanged = (e) => setContent(e.target.value);
+
+            const dispatch = useDispatch();
+
+            const onSavePostClicked = ()=> {
+                if(title && content) {
+                    dispatch(
+                        postAdded({
+                            id: nanoid(),
+                            title,
+                            content
+                        })
+                    )
+                }
+            }
+
+            return (
+                <section>
+                <h2>Add a New Post</h2>
+                <form>
+
+                    <label htmlFor="postTitle">Post Title:</label>
+                    <input
+                    type="text"
+                    id="postTitle"
+                    name="postTitle"
+                    value={title}
+                    onChange={onTitleChanged}
+                    />
+
+                    <label htmlFor="postContent">Content:</label>
+                    <textarea
+                    id="postContent"
+                    name="postContent"
+                    value={content}
+                    onChange={onContentChanged}
+                    />
+
+                    <button
+                        type="button"
+                        onClick={onSavePostClicked}
+                    >Save Post</button>
+                </form>
+                </section>
+            );
+            };
+
+Тепер створимо userSlice, аби ми могли відображати автора поста:
+
+            const initialState = [
+                {id:'0',name:'Dude Lebowski'},
+                {id:'1',name:'Neil Young'},
+                {id:'2',name:'Dave Gray'}
+            ];
+            const usersSlice = createSlice({
+                name: 'users',
+                initialState,
+                reducers: {}
+            });
+
+            const selectAllUsers = (state) => state.users;
+            const {reducer: usersReducer} = usersSlice;
+
+            export {selectAllUsers,usersReducer};
+
+І додамо додаткову логіку в AddPostForm:
+
+            const [userId,setUserId] = useState("");
+            const users = useSelector(selectAllUsers);
+            const onAuthorChandeg = (e) => setUserId(e.target.value);
+            userId в postAdded
+
+            const usersOptions = users.map(user => (
+                <option key={user.id} value={user.id}>
+                    {user.name}
+                </option>
+            ))
+
+Там же ж додамо розмітку в return: 
+
+            <label htmlFor="postAuthor">Author:</label>
+                    <select
+                        id="postAuthor"
+                        value={userId}
+                        onChange={onAuthorChandeg}>
+                        <option value=""></option>
+                        {usersOptions}
+                    </select>
+
+Також додамо перевірку, чи всі поля заповнені:
+
+            const canSave = Boolean(title) && Boolean(content) && Boolean(userId);
+
+І передамо це в якості заперечення в параметр disabled в наш button:
+
+            <button
+                type="button"
+                onClick={onSavePostClicked}
+    --->        disabled={!canSave}
+            >Save Post</button>
+
+Тепер створимо PostAuthor, який буде відповідати за інформацію про автора поста : 
+
+            const PostAuthor = ({userId})=> {
+
+                const users = useSelector(selectAllUsers);
+                const author = users.find(user => user.id === userId);
+
+                return (
+                    <span>by {author ? author.name : 'Unknown author'}</span>
+                )
+            };
+
+І в PostsList, де відбувається рендер інформації про кожен пост в renderePosts додамо поле з інфою про автора:
+
+            <p className='postCredit'>
+                <PostAuthor userId={post.userId}/>
+            </p>
+
+Тепер зробимо можливість фіксувати коли був зроблений пост. Для цього потрібно встановити:
+
+            npm i date-fns
+
+Для вже готових постів в initialState в postsSlice додамо date:
+
+            {
+                id: "1",
+                title: "Learning Redux Toolkit",
+                content: "I`ve heard good things",
+    --->        date: sub(new Date(), { minutes: 10 }).toISOString(),
+            }
+
+І також додамо  date в postAdded (кнопка onSavePostClicked), аби генерувати час для нових постів:
+
+            postAdded({
+                id: nanoid(),
+                title,
+                content,
+                userId,
+    --->        date: new Date().toISOString()
+            })
+
+Створимо компонент TimeAgo.js :
+
+            const TimeAgo = ({ timestamp }) => {
+            let timeAgo = "";
+
+            if (timestamp) {
+                const date = parseISO(timestamp);
+                const timePeriod = formatDistanceToNow(date);
+                timeAgo = `${timePeriod} ago`;
+            }
+
+            return (
+                <span title={timestamp}>
+                &nbsp; <i>{timeAgo}</i>
+                </span>
+            );
+            };
+
+І тепер в renderedPost поруч з автором поста (PostAuthor) додамо час:
+
+            <p className="postCredit">
+                <PostAuthor userId={post.userId} />
+    --->            <TimeAgo timestamp={post.date} />
+            </p>
+
+Тепер щоб сортувати спочатку нові пости а потім старі, в PostsList створимо:
+
+            const orderedPosts = posts.slice().sort((a,b) => b.date.localeCompare(a.date));
+
+І тепер в тому ж PostsList > renderePosts будемо мапати не posts, a  orderedPosts:
+
+            const renderePosts = orderedPosts.map((post) => ...
+
+Тепер додамо емодзі для реакції на пости.
+Додамо обєкт емодзі для наших створених постів і в функцію postAdded функції onSavePostClicked:
+
+                reactions: {
+                    thumbsUp: 0,
+                    wow: 0,
+                    heart: 0,
+                    rocket: 0,
+                    coffee: 0
+                }
+
+Далі в postsSlice > reducers додамо новий редюсер = reactionAdded (і експортуємо його):
+
+                reactionAdded(state,action) {
+                    const {postId,reaction} = action.payload;
+                    const existingPost = state.find(post => post.id === postId);
+                    if(existingPost) {
+                        existingPost.reactions[reaction]++
+                    }
+Тепер створимо компонент для емодзі - ReactionButtons:
+
+            const reactionEmoji = {
+                thumbsUp: '👍',
+                wow: '😮',
+                heart: '❤️',
+                rocket: '🚀',
+                coffee: '☕'
+            };
+
+            const ReactionButtons = ({post}) => {
+                const dispatch = useDispatch();
+
+                const reactionButtons = Object.entries(reactionEmoji).map(([name, emoji]) => {
+                    return (
+                        <button
+                            key={name}
+                            type='button'
+                            className="reactionButton"
+                            onClick={()=> {
+                                dispatch(reactionAdded({postId: post.id, reaction: name}))
+                            }}
+                        >
+                            {emoji} {post.reaction[name]}
+                        </button>
+                    )
+                })
+                return <div>{reactionButtons}</div>
+            };
+
+І останнє - в PostsList в кінці renderePosts викличемо наш компонент  ReactionButtons:
+
+            const renderePosts = orderedPosts.map((post) => (
+                <article key={post.id}>
+                <h3>{post.title}</h3>
+                <p>{post.content.substring(0, 100)}</p>
+                <p className="postCredit">
+                    <PostAuthor userId={post.userId} />
+                    <TimeAgo timestamp={post.date} />
+                </p>
+                <ReactionButtons post={post}/>
+                </article> 
+            ));
